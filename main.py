@@ -1,64 +1,67 @@
 import os
-from src.reader import read_csv, write_csv
-from src.layout import create_figure, Layout
 
-from dash import Dash, html, dcc
+from src.data_reader import filter_sales_data, read_input
+from dash import Dash, html, dcc, callback, Input, Output
 import plotly.express as px
-import pandas as pd
 
-def filter_data(data):
-    region_filtered = {}
-    for row in data:
-        if 'pink' not in row['product']:
-            continue
-        
-        region = row['region']
-        sales = int(row['quantity']) * float(row['price'].replace('$', ''))
-        date = row['date']
-
-        if region not in region_filtered:
-            region_filtered[region] = []
-        region_filtered[region].append([sales, date, region]) 
-    return region_filtered
-
-def generate_output(input, output):
-    os.makedirs(output_path, exist_ok=True)
-
-    data = []
-    for file in ["daily_sales_data_0.csv", "daily_sales_data_1.csv", "daily_sales_data_2.csv"]:
-        data.extend(read_csv(path=os.path.join(input, file)))
-        
-        
-    # Read data and filter
-    region_filtered = filter_data(data)
-    output_files_path = []
+@callback(
+    Output("sales-chart", "figure"),
+    Input("region", "value"))
+def read_filters(value):
+    print(value)
+    if value == "ALL":
+        return px.line(region_filtered, "Date", "Sales", "Region") 
+    return px.line(region_filtered[region_filtered['Region'] == value], "Date", "Sales", "Region")
     
-    # Write output
-    for region in region_filtered:
-        filename = os.path.join(output, f'{region}_daily_sales_data.csv')
-        output_files_path.append(filename)
-        write_csv(filename, ['Sales', 'Date', 'Region'], region_filtered[region])
-    
-    return output_files_path
-
 
 if __name__ == "__main__":
     ## Files
-    input_path = os.path.join("data")
-    output_path = os.path.join("output")
-    outputs = generate_output(input_path, output_path)
+    source = os.path.join("data")
+    output = os.path.join("output")
+    os.makedirs(output, exist_ok=True)        
     
-    app = Dash()    
-    df = pd.read_csv(outputs[1])
+    sales_data_frame = read_input(source)
     
-    figure = create_figure(df, "Date", "Sales", "Region")
+    ## Filter the data
+    region_filtered = filter_sales_data(sales_data_frame, "pink morsel")
     
-    app.layout = Layout()\
-                    .H1("SALES REPORT")\
-                    .Div('Dash: A web application framework for your data.')\
-                    .Figure("example-graph", figure)\
-                        .Build()
+    for region, r in region_filtered.groupby("Region"):
+        r.to_csv(os.path.join(output, f"{region}_daily_sales_data.csv"), index=False)
 
+    regions = region_filtered["Region"].dropna().unique().tolist()
+    
+    regions_option = { i: i.upper() for i in regions}
+    regions_option["ALL"] = "ALL"
+    
+    app = Dash()
+        
+    figure = px.line(region_filtered, "Date", "Sales", "Region")
+    
+    app.layout = html.Div(
+    [
+        html.H1("Sales Analysis"),
+
+        html.P(
+            "Select a time range to update the chart below."
+        ),
+
+        dcc.RadioItems(
+            id="region",
+            options=regions_option,
+            value='ALL',
+            inline=True,
+        ),
+
+        dcc.Graph(id="sales-chart", figure=figure),
+    ],
+    style={
+        "display": "flex",
+        "flexDirection": "column",
+        "gap": "20px",
+        "maxWidth": "900px",
+        "margin": "auto",
+        "padding": "20px",
+    })
     
     app.run(debug=True)
     
