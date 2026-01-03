@@ -1,7 +1,11 @@
 #!/bin/bash
 
-source venev/bin/activate
+python -m venv venv
+source venv/bin/activate
 echo "Virtual Environment Activated"
+
+pip install --upgrade pip
+pip install -r requirements.txt
 
 echo "Started Testing Application"
 pytest
