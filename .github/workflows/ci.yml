@@ -27,6 +27,6 @@ jobs:
 
       - name: Run tests via bash script
         run: |
-          chmod +x run_tests.sh
+          chmod +x build.sh
           ./build.sh
   
